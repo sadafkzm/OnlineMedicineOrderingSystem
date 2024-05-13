@@ -1,0 +1,76 @@
+package com.anu.controller;
+
+import com.anu.config.TokenProvider;
+import com.anu.model.AuthToken;
+import com.anu.model.LoginUser;
+import com.anu.model.User;
+import com.anu.model.UserDto;
+import com.anu.service.UserService;
+import com.anu.service.impl.EmailService;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@CrossOrigin(origins = "*", maxAge = 3600)
+@RestController
+@RequestMapping("/users")
+public class UserController {
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private TokenProvider jwtTokenUtil;
+
+    @Autowired
+    private UserService userService;
+    @Autowired
+    private EmailService emailService;
+
+    @RequestMapping(value = "/authenticate", method = RequestMethod.POST)
+    public ResponseEntity<?> generateToken(@RequestBody LoginUser loginUser) throws AuthenticationException {
+
+        final Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        loginUser.getUsername(),
+                        loginUser.getPassword()
+                )
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        final String token = jwtTokenUtil.generateToken(authentication);
+        return ResponseEntity.ok(new AuthToken(token));
+    }
+
+    @RequestMapping(value="/register", method = RequestMethod.POST)
+    public User saveUser(@RequestBody UserDto user){
+    	 String to = user.getEmail();
+         String subject = "Account Confirmation";
+         String body = "Dear " + user.getName() + ",\n\nYour account has been successfully registered.\n\n Your credantial \n UserName :"+user.getUsername()+"\nPassword : "+user.getPassword()+ "\n\nThank you!";
+         emailService.sendConfirmationEmail(to, subject, body);
+        return userService.save(user);
+    }
+
+
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @RequestMapping(value="/adminping", method = RequestMethod.GET)
+    public String adminPing(){
+        return "Only Admins Can Read This";
+    }
+
+    @PreAuthorize("hasRole('USER')")
+    @RequestMapping(value="/userping", method = RequestMethod.GET)
+    public String userPing(){
+        return "Any User Can Read This";
+    }
+
+}
